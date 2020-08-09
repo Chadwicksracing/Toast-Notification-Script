@@ -1,4 +1,5 @@
-﻿<#
+﻿#Region Help
+<#
 .SYNOPSIS
     Create nice Windows 10 toast notifications for the logged on user in Windows 10.
 
@@ -79,6 +80,7 @@
 .LINK
     https://www.imab.dk/windows-10-toast-notification-script/
 #> 
+#EndRegion Help
 
 [CmdletBinding()]
 param(
@@ -86,6 +88,7 @@ param(
     [string]$Config
 )
 
+#Region Helper Functions 
 ######### FUNCTIONS #########
 
 # Create write log function
@@ -602,7 +605,118 @@ else {
     Write-Output "Something about the config file is completely off"
     Exit 1
 }
+# Convert the EvaluationState value to a readable value from Namespace = "root\ccm\clientSDK" & ClassName = "CCM_SoftwareUpdatesManager"
+enum EvaluationState 
+{
+    None = 0
+    Available = 1
+    Submitted = 2
+    Detection = 3
+    PreDownloading = 4
+    Downloading = 5
+    WaitInstall = 6
+    Installing = 7
+    PendingSoftReboot = 8
+    PendingHardReboot = 9
+    WaitReboot = 10
+    Verifying = 11
+    InstallComplete = 12
+    Error = 13
+    WaitServiceWindow = 14
+    WaitUserLogon = 15
+    WaitUserLogoff = 16
+    WaitJobUserLogon = 17
+    WaitUserReconnect = 18
+    PendingUserLogoff = 19
+    PendingUpdate = 20
+    WaitingRetry = 21
+    WaitPresModeOff = 22
+    WaitForOrchestration = 23
+}
 
+function Trigger-AvailableCMUpdate {
+    [CmdLetBinding(SupportsShouldProcess=$True)]
+    Param
+    (
+    [Parameter(Mandatory=$false, Position=1, ParameterSetName="Single", HelpMessage="This should be self explainatory. You can use more than 1 computer name.")] 
+    [string]
+    $Computername = $env:COMPUTERNAME,
+    [Parameter(Mandatory=$false, Position=2, ParameterSetName="Single", HelpMessage="When you use this, you use the article ID of the update you want to specificifaly target")]
+    [String]
+    $UpdateID,
+    [Parameter(Mandatory=$false, Position=3, ParameterSetName="Single", HelpMessage="When you use this, are searching for the name of the update you want to specificifaly target")]
+    [String]
+    $UpdateName
+    )
+
+    Begin {
+        
+    }
+    
+    Process {
+
+    # Splatt CIM Instance parameters
+    $parmwmi = @{
+        Namespace = "root\ccm\clientSDK"
+        Query = "SELECT * from CCM_SoftwareUpdate WHERE ArticleId='$($UpdateID)' AND Name LIKE '%$($UpdateName)%'"
+        }
+    try {
+
+        $CMUpdateFound = Get-CimInstance @parmwmi
+    }
+    catch {
+
+        Write-Error -Message "$($_.Exception.Message)" -Verbose
+    }
+    if(!($CMUpdateFound -eq $null)) {
+
+            # Testing if you Just looking to return the info in var
+            # Return $CMUpdateFound
+
+        # Use the Enum to convert the Evaluation State to a readable format
+        [EvaluationState]$EvaluationState = $CMUpdateFound.EvaluationState
+        
+        if ($EvaluationState -eq "None" -or $EvaluationState -eq "Available") {
+
+            Write-Verbose -Message "Found a update that matches $($UpdateID) and $($CMUpdateFound.Name)" -Verbose
+
+            # Convert the Update ID to a IDictionary System Type
+            [System.Collections.IDictionary]$CMUpdateFound.UpdateID = $CCMUpdateID
+
+            # Splatt CIM Method parameters
+            $parmCIM = @{
+            Namespace = "root\ccm\clientSDK"
+            ClassName = "CCM_SoftwareUpdatesManager"
+            MethodName = "InstallUpdates"
+            }
+
+            try {
+                # TODO: Remove -whatif from here
+                Invoke-CimMethod @parmCIM -Arguments $CCMUpdateID -WhatIf
+            }
+            catch {
+
+                Write-Error -Message "$($_.Exception.Message)" -Verbose
+            }
+        }
+        else  {
+
+            Write-Warning -Message "Found a update that matches $($UpdateID) and $($CMUpdateFound.Name), but its status is not ready to trigger install." -Verbose
+            Write-Warning -Message "Update Evaluation Status: $($Evaluation)" -Verbose
+        }
+    }
+    else {
+
+        Write-Warning -Message "Article ID $($UpdateID) was not found on $($ComputerName)" -Verbose
+    }
+    }
+    End {
+
+    }
+}
+#EndRegion Helper Functions
+
+#Region Parse XML Config
 # Load xml content into variables
 if(-NOT[string]::IsNullOrEmpty($Xml)) {
     try {
@@ -701,7 +815,9 @@ if(-NOT[string]::IsNullOrEmpty($Xml)) {
         Exit 1
     }
 }
+#EndRegion Parse XML Config
 
+#Region Checks and Conflicts
 # Check if toast is enabled in config.xml
 if ($ToastEnabled -ne "True") {
     Write-Log -Message "Toast notification is not enabled. Please check $Config file"
@@ -806,7 +922,9 @@ if (($RunApplicationIDEnabled -eq "True") -AND ($RunPackageIDEnabled -eq "True")
     Write-Log -Level Warn -Message "You should only enable one of the options"
     Exit 1
 }
+#EndRegion Checks and Conflicts
 
+#Region Script Building Blocks
 # Downloading images into user's temp folder if images are hosted online
 if (($LogoImageFileName.StartsWith("https://")) -OR ($LogoImageFileName.StartsWith("http://"))) {
     Write-Log -Message "ToastLogoImage appears to be hosted online. Will need to download the file"
@@ -942,7 +1060,9 @@ if ($GreetGivenName -eq "True") {
     $GivenName = Get-GivenName
     $HeaderText = "$Greeting $GivenName"
 }
+#EndRegion Script Building Blocks
 
+#Region Build XML for Notfication
 # Formatting the toast notification XML
 # Create the default toast notification XML with action button and dismiss button
 if (($ActionButtonEnabled -eq "True") -AND ($DismissButtonEnabled -eq "True")) {
@@ -1191,7 +1311,9 @@ $UptimeGroup = @"
 "@
     $Toast.toast.visual.binding.InnerXml = $Toast.toast.visual.binding.InnerXml + $UptimeGroup
 }
+#EndRegion Build XML for Notfication
 
+#Region Display Notification IF Statements
 # Running the Display-notification function depending on selections and variables
 # Toast used for upgrading OS. Checking running OS buildnumber. No need to display toast, if the OS is already running on TargetOS
 if (($UpgradeOS -eq "True") -AND ($RunningOS.BuildNumber -lt $TargetOS)) {
@@ -1200,6 +1322,7 @@ if (($UpgradeOS -eq "True") -AND ($RunningOS.BuildNumber -lt $TargetOS)) {
     # Stopping script. No need to accidently run further toasts
     break
 }
+# TODO: Add in for servicing
 else {
     Write-Log -Level Warn -Message "Conditions for displaying toast notifications for UpgradeOS are not fulfilled"
 }
@@ -1258,3 +1381,4 @@ if (($UpgradeOS -ne "True") -AND ($PendingRebootCheck -ne "True") -AND ($Pending
 else {
     Write-Log -Level Warn -Message "Conditions for displaying default toast notification are not fulfilled"
 }
+#EndRegion Display Notifications IF Statements
