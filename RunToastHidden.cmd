@@ -1,1 +1,1 @@
-powershell.exe -file "C:\ProgramData\ToastNotificationScript\PendingReboot\New-ToastNotification.ps1" -Config "\\YourNetworkPath\ToastNotificationScript\Configs\config-toast-pendingreboot.xml"
+powershell.exe -file "New-ToastNotification.ps1" -Config "config-toast-osupgrade_Servicing.xml"
