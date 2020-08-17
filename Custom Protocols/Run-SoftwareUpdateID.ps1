@@ -32,8 +32,40 @@
           Modified: 
           URL: https://timmyit.com/2016/08/01/sccm-and-powershell-force-install-of-software-updates-thats-available-on-client-through-wmi/
           Version - 0.0.0 - 
+
+          Evaluation States: (https://docs.microsoft.com/en-us/mem/configmgr/develop/reference/core/clients/sdk/ccm_evaluationstate-client-wmi-class)
+            Evaluation state. Possible values are:
+            Value	Description
+            0	No state information is available.
+            1	Application is enforced to desired/resolved state.
+            2	Application is not required on the client.
+            3	Application is available for enforcement (install or uninstall based on resolved state). Content may/may not have been downloaded.
+            4	Application last failed to enforce (install/uninstall).
+            5	Application is currently waiting for content download to complete.
+            6	Application is currently waiting for content download to complete.
+            7	Application is currently waiting for its dependencies to download.
+            8	Application is currently waiting for a service (maintenance) window.
+            9	Application is currently waiting for a previously pending reboot.
+            10	Application is currently waiting for serialized enforcement.
+            11	Application is currently enforcing dependencies.
+            12	Application is currently enforcing.
+            13	Application install/uninstall enforced and soft reboot is pending.
+            14	Application installed/uninstalled and hard reboot is pending.
+            15	Update is available but pending installation.
+            16	Application failed to evaluate.
+            17	Application is currently waiting for an active user session to enforce.
+            18	Application is currently waiting for all users to logoff.
+            19	Application is currently waiting for a user logon.
+            20	Application in progress, waiting for retry.
+            21	Application is waiting for presentation mode to be switched off.
+            22	Application is pre-downloading content (downloading outside of install job).
+            23	Application is pre-downloading dependent content (downloading outside of install job).
+            24	Application download failed (downloading during install job).
+            25	Application pre-downloading failed (downloading outside of install job).
+            26	Download success (downloading during install job).
+            27	Post-enforce evaluation.
+            28	Waiting for network connectivity.
 #>
-# Convert the EvaluationState value to a readable valueenum EvaluationState 
 
 [CmdLetBinding()]
 Param(
@@ -44,6 +76,8 @@ Param(
     [String]
     $UpdateName = (Get-ItemProperty -Path "HKCU:\SOFTWARE\ToastNotificationScript" -Name "RunPackageID").RunUpdateName
 )
+# Convert the EvaluationState value to a readable valueenum EvaluationState 
+
 enum EvaluationState {
     None = 0
     Available = 1
@@ -69,7 +103,13 @@ enum EvaluationState {
     WaitingRetry = 21
     WaitPresModeOff = 22
     WaitForOrchestration = 23
+    ApplicationDownloadFailed = 24
+    ApplicationPredownloadingFailed = 25
+    DownloadSucess = 26
+    PostenforceEvaluation = 27
+    WaitingforNetwork = 28
 }
+
     # Splatt CIM Instance parameters
     $parmwmi = @{
         Namespace = "root\ccm\clientSDK"

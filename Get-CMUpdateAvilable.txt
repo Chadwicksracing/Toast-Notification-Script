@@ -1,0 +1,43 @@
+function Get-CMUpdateAvailable {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false, Position=1)]
+        [String]
+        $UpdateID = $RunUpdateIDValue,
+        [Parameter(Mandatory=$false, Position=2)]
+        [String]
+        $UpdateName = $RunUpdateTitleValue
+    )
+        # Splatt CIM Instance parameters
+        $parmwmi = @{
+            Namespace = "root\ccm\clientSDK"
+            Query = "SELECT * from CCM_SoftwareUpdate WHERE ArticleId='$($UpdateID)' AND Name LIKE '%$($UpdateName)%'"
+        }
+        try {
+            $GetCMUpdate = Get-CimInstance @parmwmi
+        }
+        catch {
+            Write-Error -Message "$($_.Exception.Message)" -Verbose
+        }
+        if(!($GetCMUpdate -eq $null)) {
+            # Use the Enum to convert the Evaluation State to a readable format
+            [CCMClient.EvaluationState]$EvaluationState = $GetCMUpdate.EvaluationState
+            
+            if ($EvaluationState -eq "None" -or $EvaluationState -eq "Available" -or $EvaluationState -eq "Submitted") {
+                Write-Log -Level Info -Message "Found a update that matches $($UpdateID) and $($GetCMUpdate.Name)"
+                Write-Output "Found a update that matches $($UpdateID) and $($GetCMUpdate.Name)"
+                Return $GetCMUpdate.UpdateID
+            }
+            else {
+                Write-Log -Level Warn -Message "Update State is not set to available."
+                Write-Log -Level Warn -Message "Update State: $($EvaluationState). Refer to notes in script for meaning of state."
+                Write-Output "Update State is not set to available."
+                Write-Output "Update State: $($EvaluationState). Refer to notes in script for meaning of state."
+            }
+        }
+        else {
+            Write-Log -Level Warn -Message "No Update was found on system. UpdateID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
+            Write-Output "No Update was found on system. UpdateID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
+            Exit 1
+        }
+    }

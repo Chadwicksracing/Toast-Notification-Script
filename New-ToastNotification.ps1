@@ -529,8 +529,83 @@ $LogoImageTemp = "$env:TEMP\ToastLogoImage.jpg"
 $HeroImageTemp = "$env:TEMP\ToastHeroImage.jpg"
 # Setting path to local images
 $ImagesPath = "file:///$global:ScriptPath/Images"
+# Getting custom action script location
+$global:CustomScriptPath = "$($env:ProgramData)\ToastNotificationScript"
+
+# Using Add-Type instead of Enum because we can group by namespace: ex [CCMClient.EvaluationState]
+# Future considerations; adding DCM and App Eval states
+try {
+    Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
+    namespace CCMClient
+    {
+        public enum EvalResult {
+            Not_Yet_Evaluated = 1,
+            Not_Applicable = 2,
+            Evaluation_Failed = 3,
+            Evaluated_Remediated_Failed = 4,
+            Not_Evaluated_Dependency_Failed = 5,
+            Evaluated_Remediated_Succeeded = 6,
+            Evaluation_Succeeded = 7
+        }
+        public enum EvaluationState
+        {
+            None = 0,
+            Available = 1,
+            Submitted = 2,
+            Detecting = 3,
+            PreDownload = 4,
+            Downloading = 5,
+            WaitInstall = 6,
+            Installing = 7,
+            PendingSoftReboot = 8,
+            PendingHardReboot = 9,
+            WaitReboot = 10,
+            Verifying = 11,
+            InstallComplete = 12,
+            Error = 13,
+            WaitServiceWindow = 14,
+            WaitUserLogon = 15,
+            WaitUserLogoff = 16,
+            WaitJobUserLogon = 17,
+            WaitUserReconnect = 18,
+            PendingUserLogoff = 19,
+            PendingUpdate = 20,
+            WaitingRetry = 21,
+            WaitPresModeOff = 22,
+            WaitForOrchestration = 23,
+            ApplicationDownloadFailed = 24,
+            ApplicationPredownloadingFailed = 25,
+            DownloadSucess = 26,
+            PostenforceEvaluation = 27,
+            WaitingforNetwork = 28
+        }
+        public enum DCMEvaluationState {
+            NonCompliant = 0,
+            Compliant = 1,
+            Submitted = 2,
+            Unknown = 3,
+            Detecting = 4,
+            NotEvaluated = 5
+        }
+    }
+'@
+}
+catch {
+    $ErrorMessage = $_.Exception.Message
+    if($ErrorMessage -match "already exists") {
+        Write-Log -Message "Error, the type already is added...moving on" -Level Warn
+    }
+    else {
+        Write-Log -Message "Error, could not Add-Type" -Level Warn
+        Write-Log -Message "Error message: $ErrorMessage" -Level Warn
+        # Using Write-Output for sending status to IME log when used with Endpoint Analytics in Intune
+        Write-Output "Error, could not Add-Type. This parses information in WMI that needs to be loaded for the script to function. Error message: $ErrorMessage"
+        Exit 1
+    }
+}    
+
 # Testing for prerequisites
-# Testing if script is being run as SYSTEM. This is not supported as the toast notification needs the current user's context
+# Testing if script is being run as SYSTEM. This is not supported as the toast notification needs the current users context
 $isSystem = Test-NTSystem
 if ($isSystem -eq $True) {
     Write-Log -Message "Aborting script" -Level Warn
@@ -605,6 +680,210 @@ else {
     Write-Output "Something about the config file is completely off"
     Exit 1
 }
+
+# TODO:  Write-CustomActionRegistry Updates
+<#
+    .DESCRIPTION
+        Description
+
+    .NOTES
+        Author:     Chad Brower
+        Contact:    @Brower_Chad
+        Created:    2020.08.17
+
+#>
+function Write-CustomActionRegistry {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [TypeName]
+        $ParameterName
+    )
+    FunctionBody
+}
+ # TODO: Write-UpdateIDRegistry
+ <#
+    .DESCRIPTION
+        Description
+
+    .NOTES
+        Author:     Chad Brower
+        Contact:    @Brower_Chad
+        Created:    2020.08.17
+
+#>
+function Write-UpdateIDRegistry {
+    [CmdletBinding()]
+    param (
+        [Parameter()]
+        [String]
+        $RegistryPath = "HKCU:\SOFTWARE\ToastNotificationScript",
+        [Parameter()]
+        [String]
+        $RegistryName = "RunUpdateID" 
+
+    )
+    Write-Log -Message "Running Write-UpdateIDRegistry function"
+    $RegistryPath = "HKCU:\SOFTWARE\ToastNotificationScript"
+    $RegistryName = "RunUpdateID"    
+    # Making sure that the registry path being used exists
+    if (-NOT(Test-Path -Path $RegistryPath)) {
+        try {
+            New-Item -Path $RegistryPath -Force
+        }
+        catch { 
+            Write-Log -Level Warn -Message "Error. Could not create ToastNotificationScript registry path"
+        }
+    }
+    # If the ApplicationID specified in the config.xml is picked up
+    if ($RunUpdateIDValue) {
+        # If the ConfigMgr service exist
+        if (Get-Service -Name ccmexec -ErrorAction SilentlyContinue) {
+            # Testing if the ApplicationID specified in the config.xml actually is deployed to the device
+            try {
+                $TestUpdateID = Get-CMUpdateAvailable
+            }
+            catch { 
+                Write-Log -Level Warn -Message "Failed to retrieve $RunUpdateIDValue from WMI"
+            }
+
+            # If the ApplicationID is found in WMI with the ConfigMgr client, tattoo that ApplicationID into registry
+            if ($TestUpdateID) {
+                Write-Log -Message "ApplicationID: $RunApplicationIDValue was found in WMI as deployed to the client"
+                Write-Log -Message "Writing the ApplicationID to registry"
+                if ((Get-ItemProperty -Path $RegistryPath -Name $RegistryName -ErrorAction SilentlyContinue).$RegistryName -ne $RunApplicationIDValue) {
+                    try {
+                        New-ItemProperty -Path $RegistryPath -Name $RegistryName -Value $RunApplicationIDValue -PropertyType "String" -Force   
+                    }
+                    catch {
+                        Write-Log -Level Warn -Message "Failed to write ApplicationID: $RunApplicationIDValue to registry"
+                    }
+                }
+            }
+            else {
+                Write-Log -Level Warn -Message "ApplicationID: $RunApplicationIDValue was not found in WMI as deployed to the client. Please check the config.xml or deployment in ConfigMgr"
+            }
+        }
+        else {
+            Write-Log -Level Warn -Message "No ConfigMgr service found. This functon requires the ConfigMgr client to be installed"
+        }
+    }
+}
+    
+ # TODO: Write-CustomActionScript Updates
+ function Write-CustomActionScript {
+    [CmdletBinding()]
+    param (
+        [Parameter(Position="0")]
+        [ValidateSet("ApplicationID","PackageID","UpdateID")]
+        [string]
+        $Type,
+        [Parameter(Position="0")]
+        [String]
+        $Path = $CustomScriptPath
+    )
+    # Create Path for custom scipts to live
+    try {
+        if(Test-Path -Path $Path) {
+            Write-Log -Level Info -Message "Script Path Found"
+            Write-Output "Script Path Found"
+        }
+        else {
+            New-item -Path $Path -ItemType Directory -Force | Out-Null
+        }
+    }
+    catch {
+        $ErrorMessage = $_.Exception.Message
+        Write-Log -Level Error -Message "$($ErrorMessage)"
+        Write-Error -Message "$($ErrorMessage)"
+    }
+    switch ($Type) {
+        UpdateID {
+            try {
+                New-item -Path $CustomScriptPath -Name "Run-SoftwareUpdateID.cmd" -Force -OutVariable PathInfo | Out-Null
+                    try {
+                        $GetCustomScriptPath = $PathInfo.FullName
+                        [String]$Script = @'
+Powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -NoProfile -WindowStyle Hidden -Command "& { $registryPath = "HKCU:\SOFTWARE\ToastNotificationScript";
+$UpdateID = (Get-ItemProperty -Path $RegistryPath -Name "RunUpdateID").RunUpdateID;
+if(Test-Path -Path "C:\Windows\CCM\ClientUX\SCClient.exe") { Start-Process -FilePath "C:\Windows\CCM\ClientUX\SCClient.exe" -ArgumentList $UpdateID -NoNewWindow } }"
+'@
+                        Out-File -FilePath $GetCustomScriptPath -InputObject $Script -Encoding ASCII -Force
+                    }
+                    catch {
+                        $ErrorMessage = $_.Exception.Message
+                        Write-Log -Level Error -Message "$($ErrorMessage)"
+                        Write-Error -Message "$($ErrorMessage)"
+                    }
+            }
+            catch {
+                $ErrorMessage = $_.Exception.Message
+                Write-Log -Level Error -Message "$($ErrorMessage)"
+                Write-Error -Message "$($ErrorMessage)"
+            }
+            
+        }
+        # TODO: Add other types: ApplicationID and PackageID
+        Default {Write-Verbose -Message "No Type Matched" -Verbose ; break}
+    }
+}
+
+# TODO: Get-CMUpdateAvailable
+<#
+    .DESCRIPTION
+        Get available updates based on the parameters you feed into the script
+
+    .NOTES
+        Author:     Chad Brower
+        Contact:    @Brower_Chad
+        Created:    2020.08.17
+
+#>
+function Get-CMUpdateAvailable {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory=$false, Position=1)]
+        [String]
+        $UpdateID = $RunUpdateIDValue,
+        [Parameter(Mandatory=$false, Position=2)]
+        [String]
+        $UpdateName = $RunUpdateTitleValue
+    )
+        # Splatt CIM Instance parameters
+        $parmwmi = @{
+            Namespace = "root\ccm\clientSDK"
+            Query = "SELECT * from CCM_SoftwareUpdate WHERE ArticleId='$($UpdateID)' AND Name LIKE '%$($UpdateName)%'"
+        }
+        try {
+            $GetCMUpdate = Get-CimInstance @parmwmi
+        }
+        catch {
+            Write-Log -Level Error -Message "$($_.Exception.Message)"
+            Write-Error -Message "$($_.Exception.Message)"
+        }
+        if(!($GetCMUpdate -eq $null)) {
+            # Use the Enum to convert the Evaluation State to a readable format
+            [CCMClient.EvaluationState]$EvaluationState = $GetCMUpdate.EvaluationState
+            
+            if ($EvaluationState -eq "None" -or $EvaluationState -eq "Available" -or $EvaluationState -eq "Submitted") {
+                Write-Log -Level Info -Message "Found a update that matches ID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
+                Write-Output "Found a update that matches $($UpdateID) and $($GetCMUpdate.Name)"
+                Return $Global:GetCMUpdate.UpdateID
+            }
+            else {
+                Write-Log -Level Warn -Message "Update State is not set to available."
+                Write-Log -Level Warn -Message "Update State: $($EvaluationState). Refer to notes in script for meaning of state."
+                Write-Output "Update State is not set to available."
+                Write-Output "Update State: $($EvaluationState). Refer to notes in script for meaning of state."
+            }
+        }
+        else {
+            Write-Log -Level Warn -Message "No Update was found on system. UpdateID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
+            Write-Output "No Update was found on system. UpdateID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
+            Exit 1
+        }
+    }
+
 #EndRegion Helper Functions
 
 #Region Parse XML Config
@@ -633,6 +912,12 @@ if(-NOT[string]::IsNullOrEmpty($Xml)) {
         $RunPackageIDValue = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RunPackageID'} | Select-Object -ExpandProperty 'Value'
         $RunApplicationIDEnabled = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RunApplicationID'} | Select-Object -ExpandProperty 'Enabled'
         $RunApplicationIDValue = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RunApplicationID'} | Select-Object -ExpandProperty 'Value'
+        # Servicing
+        $RunUpdateIDEnabled = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RunUpdateID'} | Select-Object -ExpandProperty 'Enabled'
+        $RunUpdateIDValue = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RunUpdateID'}| Select-Object -ExpandProperty 'Value'
+        $RunUpdateTitleEnabled = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RunUpdateTitle'} | Select-Object -ExpandProperty 'Enabled'
+        $RunUpdateTitleValue = $Xml.Configuration.Option | Where-Object {$_.Name -like 'RunUpdateTitle'} | Select-Object -ExpandProperty 'Value'
+
         $SCAppName = $Xml.Configuration.Option | Where-Object {$_.Name -like 'UseSoftwareCenterApp'} | Select-Object -ExpandProperty 'Name'
         $SCAppStatus = $Xml.Configuration.Option | Where-Object {$_.Name -like 'UseSoftwareCenterApp'} | Select-Object -ExpandProperty 'Enabled'
         $PSAppName = $Xml.Configuration.Option | Where-Object {$_.Name -like 'UsePowershellApp'} | Select-Object -ExpandProperty 'Name'
@@ -813,6 +1098,18 @@ if (($RunApplicationIDEnabled -eq "True") -AND ($RunPackageIDEnabled -eq "True")
     Write-Log -Level Warn -Message "You should only enable one of the options"
     Exit 1
 }
+if (($RunApplicationIDEnabled -eq "True") -AND ($RunUpdateIDEnabled -eq "True")) {
+    Write-Log -Level Warn -Message "Error. Conflicting selection in the $Config file" 
+    Write-Log -Level Warn -Message "Error. You can't have RunApplicationIDEnabled set to True and RunUpdateIDEnabled set to True at the same time"
+    Write-Log -Level Warn -Message "You should only enable one of the options"
+    Exit 1
+}
+if (($RunUpdateIDEnabled -eq "True") -AND ($RunPackageIDEnabled -eq "True")) {
+    Write-Log -Level Warn -Message "Error. Conflicting selection in the $Config file" 
+    Write-Log -Level Warn -Message "Error. You can't have RunUpdateIDEnabled set to True and RunPackageIDEnabled set to True at the same time"
+    Write-Log -Level Warn -Message "You should only enable one of the options"
+    Exit 1
+}
 #EndRegion Checks and Conflicts
 
 #Region Script Building Blocks
@@ -867,6 +1164,14 @@ if ($RunPackageIDEnabled -eq "True") {
     Write-Log -Message "RunPackageID set to True. Will allow execution of PackageID directly from the toast action button"
     Write-PackageIDRegistry
 }
+
+# Running RunUpdateID function
+if ($RunUpdateIDEnabled -eq "True") {
+    Write-Log -Message "RunUpdateID set to True. Will allow execution of Software Update ID directly from the toast action button"
+    Write-CustomActionRegistry Updates
+    Write-UpdateIDRegistry
+}
+
 
 # Running DynamicDeadline function
 if ($DynDeadlineEnabled -eq "True") {
