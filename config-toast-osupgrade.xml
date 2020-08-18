@@ -18,8 +18,8 @@
 	<Option Name="UseSoftwareCenterApp" Enabled="false" />	<!-- The app in Windows doing the actual notification - can't be both SoftwareCenter and Powershell -->
 	<Option Name="UsePowershellApp" Enabled="True" />	<!-- The app in Windows doing the actual notification - can't be both SoftwareCenter and Powershell -->
 	<Option Name="CustomAudio" Enabled="False" />	<!-- Enable or disable a custom speak scenario, where the text will be read out aloud -->
-	<Option Name="LogoImageName" Value="fmins-favicon.png" />  <!-- File name of the image shown as logo in the toast notoification  -->
-	<Option Name="HeroImageName" Value="WaaSFMI.jpg" /> <!-- File name of the image shown in the top of the toast notification -->	
+	<Option Name="LogoImageName" Value="" />  <!-- File name of the image shown as logo in the toast notoification  -->
+	<Option Name="HeroImageName" Value="" /> <!-- File name of the image shown in the top of the toast notification -->	
 	<Option Name="ActionButton" Enabled="True" />	<!-- Enables or disables the action button. -->
 	<Option Name="DismissButton" Enabled="True" />	<!-- Enables or disables the dismiss button. -->
 	<Option Name="SnoozeButton" Enabled="True" /> <!-- Enabling this option will always enable action button and dismiss button -->
@@ -35,7 +35,7 @@
         <Text Name="ActionButton">Install now</Text>  <!-- Text on the ActionButton if enabled -->
         <Text Name="DismissButton">Dismiss</Text> <!-- Text on the DismissButton if enabled -->
         <Text Name="SnoozeButton">Snooze</Text> <!-- Text on the SnoozeButton if enabled -->
-        <Text Name="AttributionText">Frankenmuth Insurance Technical Services</Text>
+        <Text Name="AttributionText">Technical Services</Text>
         <Text Name="HeaderText">Service Desk kindly reminds you...</Text>
         <Text Name="TitleText">Windows 10 upgrade available!</Text>
         <Text Name="BodyText1">There's a new Windows upgrade available. Please schedule some time in the the coming days to perform the upgrade.  The upgrade takes up to 2 hours and you cannot use your system durning the upgrade process.</Text>

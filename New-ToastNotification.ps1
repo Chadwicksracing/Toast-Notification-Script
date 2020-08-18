@@ -598,7 +598,6 @@ catch {
     else {
         Write-Log -Message "Error, could not Add-Type" -Level Warn
         Write-Log -Message "Error message: $ErrorMessage" -Level Warn
-        # Using Write-Output for sending status to IME log when used with Endpoint Analytics in Intune
         Write-Output "Error, could not Add-Type. This parses information in WMI that needs to be loaded for the script to function. Error message: $ErrorMessage"
         Exit 1
     }
