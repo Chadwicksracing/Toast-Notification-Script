@@ -1,4 +1,4 @@
-# Toast Notification Script - Mofified by Chad Brower
+# Toast Notification Script - Modified by Chad Brower
 
     2.0.0 -   Huge changes to how this script handles custom protocols
                 - Added Support for Software Updates : Searches for an update (IPU) and will store in variable
