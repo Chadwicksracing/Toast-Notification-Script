@@ -76,6 +76,16 @@
     1.8.0 -   Added support for using Windows 10 Toast Notification Script with Endpoint Analytics Proactive Remediation
                 - Added support for having config.xml file hosted online
                 - Added support for having images used in the script hosted online
+    2.0.0 -   Huge changes to how this script handles custom protocols
+                - Added Support for Software Updates : Searches for an update (IPU) and will store in variable
+                - Added Support for Custom Actions/Protocols within the script under user context removing the need for that to be run under SYSTEM/ADMIN : Only Supports SoftwareUpdate right now
+                    <Option Name="Action" Value="ToastRunUpdateID:" />
+                - Added Support to dynamically create Custom Action Scripts to support Custom Protocols : Only Supports Software Updates right now
+                - Added New XML Types for SoftwareUpdates : 
+                    <Option Name="RunUpdateTitle" Enabled="True" Value="Version 1909" />
+                    <Option Name="RunUpdateID" Enabled="True" Value="3012973" />
+                - Removed Custom Protocols Folder : Future Support for that will be within the script
+                - Removed MSI / Zip files
 
 .LINK
     https://www.imab.dk/windows-10-toast-notification-script/
