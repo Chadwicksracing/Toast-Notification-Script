@@ -623,7 +623,7 @@ $WindowsPushNotificationsEnabled = Test-WindowsPushNotificationsEnabled
 # Default is executing directory. In this case, the config-toast.xml must exist in same directory as the New-ToastNotification.ps1 file
 if (-NOT($Config)) {
     Write-Log -Message "No config file set as parameter. Using local config file"
-    $Config = Join-Path ($global:ScriptPath) "config-toast.xml"
+    $Config = Join-Path ($global:ScriptPath) "config-toast-osupgrade_Servicing.xml"
 }
 # Load config.xml
 # Catering for when config.xml is hosted online on blob storage or similar
@@ -684,7 +684,7 @@ else {
 # TODO:  Write-CustomActionRegistry Updates
 <#
     .DESCRIPTION
-        Description
+        If a user does not have Class URL Protocol added. This func adds it to the user context.
 
     .NOTES
         Author:     Chad Brower
@@ -695,16 +695,80 @@ else {
 function Write-CustomActionRegistry {
     [CmdletBinding()]
     param (
-        [Parameter()]
-        [TypeName]
-        $ParameterName
+        [Parameter(Position="0")]
+        [ValidateSet("ToastRunApplicationID","ToastRunPackageID","ToastRunUpdateID")]
+        [string]
+        $ActionType = "ToastRunUpdateID",
+        [Parameter(Position="1")]
+        [string]
+        $RegCommandPath = $CustomScriptPath #Global Var can be changed
+
     )
-    FunctionBody
+    switch ($ActionType) {
+        ToastRunUpdateID { 
+            # Build out registry for custom action
+            if((Test-Path -LiteralPath "HKCU:\Software\Classes\$($ActionType)\shell\open\command")  -ne $true) {
+                try { 
+                    New-Item "HKCU:\Software\Classes\$($ActionType)\shell\open\command" -Force -ea SilentlyContinue | Out-Null
+                        try {
+                        New-ItemProperty -LiteralPath "HKCU:\Software\Classes\$($ActionType)" -Name 'URL Protocol' -Value '' -PropertyType String -Force -ea SilentlyContinue | Out-Null
+                        New-ItemProperty -LiteralPath "HKCU:\Software\Classes\$($ActionType)" -Name '(default)' -Value "URL:$($ActionType) Protocol" -PropertyType String -Force -ea SilentlyContinue | Out-Null
+                        $RegCommandValue = $RegCommandPath  + '\' + "Run-$($ActionType).cmd"
+                        New-ItemProperty -LiteralPath "HKCU:\Software\Classes\$($ActionType)\shell\open\command" -Name '(default)' -Value $RegCommandValue -PropertyType String -Force -ea SilentlyContinue | Out-Null
+                        }
+                        catch {
+                        $ErrorMessage = $_.Exception.Message
+                        Write-Log -Level Error -Message "$($ErrorMessage)"
+                        Write-Error -Message "$($ErrorMessage)"
+                        # Exit because without this the toast action button does not work
+                        Exit 1
+                        }
+                }
+                catch {
+                    $ErrorMessage = $_.Exception.Message
+                    Write-Log -Level Error -Message "$($ErrorMessage)"
+                    Write-Error -Message "$($ErrorMessage)"
+                    # Exit because without this the toast action button does not work
+                    Exit 1
+                }
+                }
+        #     # Build out registry for custom action
+        #     if((Test-Path -LiteralPath "HKLM:\SOFTWARE\Classes\$($ActionType)\shell\open\command") -ne $true) {
+        #         try { 
+        #             New-Item "HKLM:\SOFTWARE\Classes\$($ActionType)\shell\open\command" -force -ea SilentlyContinue | Out-Null
+        #               try {
+        #                   New-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Classes\$($ActionType)" -Name 'URL Protocol' -Value '' -PropertyType String -Force -ea SilentlyContinue | Out-Null
+        #                   New-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Classes\$($ActionType)" -Name '(default)' -Value "URL:$($ActionType) Protocol" -PropertyType String -Force -ea SilentlyContinue | Out-Null
+        #                   # Build dynamic path for cmd file
+        #                   $RegCommandValue = $RegCommandPath  + '\' + "Run-$($ActionType).cmd"
+        #                   New-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Classes\$($ActionType)\shell\open\command" -Name '(default)' -Value $RegCommandValue -PropertyType String -Force -ea SilentlyContinue | Out-Null
+        #               }
+        #               catch {
+        #                 $ErrorMessage = $_.Exception.Message
+        #                 Write-Log -Level Error -Message "$($ErrorMessage)"
+        #                 Write-Error -Message "$($ErrorMessage)"
+        #               }
+        #         }
+        #         catch {
+        #             $ErrorMessage = $_.Exception.Message
+        #             Write-Log -Level Error -Message "$($ErrorMessage)"
+        #             Write-Error -Message "$($ErrorMessage)"
+        #         }
+        #       }
+        #   else {
+        #     Write-Log -Level Info -Message "$($ActionType) Already exists in Registry"
+        #   }
+        }
+        # TODO: Add other types "ToastRunApplicationID","ToastRunPackageID"
+        Default {  
+            Write-Log -Level Info -Message "Nothing to do here"
+        }
+    }
 }
  # TODO: Write-UpdateIDRegistry
  <#
     .DESCRIPTION
-        Description
+        Adds the software update registry bit.  Uses another function to get update ID and writes to registry
 
     .NOTES
         Author:     Chad Brower
@@ -712,6 +776,7 @@ function Write-CustomActionRegistry {
         Created:    2020.08.17
 
 #>
+# TODO: Combine the other Write-reg functions and use a switch in 1 function
 function Write-UpdateIDRegistry {
     [CmdletBinding()]
     param (
@@ -739,29 +804,29 @@ function Write-UpdateIDRegistry {
     if ($RunUpdateIDValue) {
         # If the ConfigMgr service exist
         if (Get-Service -Name ccmexec -ErrorAction SilentlyContinue) {
-            # Testing if the ApplicationID specified in the config.xml actually is deployed to the device
+            # Testing if the UpdateID specified in the config.xml actually is deployed to the device
             try {
-                $TestUpdateID = Get-CMUpdateAvailable
+                $GetUpdateID = Get-CMUpdateAvailable
             }
             catch { 
                 Write-Log -Level Warn -Message "Failed to retrieve $RunUpdateIDValue from WMI"
             }
 
-            # If the ApplicationID is found in WMI with the ConfigMgr client, tattoo that ApplicationID into registry
-            if ($TestUpdateID) {
-                Write-Log -Message "ApplicationID: $RunApplicationIDValue was found in WMI as deployed to the client"
-                Write-Log -Message "Writing the ApplicationID to registry"
-                if ((Get-ItemProperty -Path $RegistryPath -Name $RegistryName -ErrorAction SilentlyContinue).$RegistryName -ne $RunApplicationIDValue) {
+            # If the Update ID is found in WMI with the ConfigMgr client, tattoo that ApplicationID into registry
+            if ($GetUpdateID) {
+                Write-Log -Message "Update ID: $RunUpdateIDValue was found in WMI as deployed to the client"
+                Write-Log -Message "Writing the Update ID to registry"
+                if ((Get-ItemProperty -Path $RegistryPath -Name $RegistryName -ErrorAction SilentlyContinue).$RegistryName -ne $GetUpdateID) {
                     try {
-                        New-ItemProperty -Path $RegistryPath -Name $RegistryName -Value $RunApplicationIDValue -PropertyType "String" -Force   
+                        New-ItemProperty -Path $RegistryPath -Name $RegistryName -Value $GetUpdateID -PropertyType "String" -Force   
                     }
                     catch {
-                        Write-Log -Level Warn -Message "Failed to write ApplicationID: $RunApplicationIDValue to registry"
+                        Write-Log -Level Warn -Message "Failed to write Update ID: $($GetUpdateID) to registry"
                     }
                 }
             }
             else {
-                Write-Log -Level Warn -Message "ApplicationID: $RunApplicationIDValue was not found in WMI as deployed to the client. Please check the config.xml or deployment in ConfigMgr"
+                Write-Log -Level Warn -Message "Update ID: $RunUpdateIDValue was not found in WMI as deployed to the client. Please check the config.xml or deployment in ConfigMgr"
             }
         }
         else {
@@ -771,22 +836,31 @@ function Write-UpdateIDRegistry {
 }
     
  # TODO: Write-CustomActionScript Updates
+ <#
+    .DESCRIPTION
+        This func creates custom action scripts for action button
+
+    .NOTES
+        Author:     Chad Brower
+        Contact:    @Brower_Chad
+        Created:    2020.08.17
+
+#>
  function Write-CustomActionScript {
     [CmdletBinding()]
     param (
         [Parameter(Position="0")]
-        [ValidateSet("ApplicationID","PackageID","UpdateID")]
+        [ValidateSet("ToastRunApplicationID","ToastRunPackageID","ToastRunUpdateID")]
         [string]
         $Type,
-        [Parameter(Position="0")]
+        [Parameter(Position="1")]
         [String]
-        $Path = $CustomScriptPath
+        $Path = $CustomScriptPath # Global var can be changed
     )
     # Create Path for custom scipts to live
     try {
         if(Test-Path -Path $Path) {
             Write-Log -Level Info -Message "Script Path Found"
-            Write-Output "Script Path Found"
         }
         else {
             New-item -Path $Path -ItemType Directory -Force | Out-Null
@@ -798,15 +872,14 @@ function Write-UpdateIDRegistry {
         Write-Error -Message "$($ErrorMessage)"
     }
     switch ($Type) {
-        UpdateID {
+        ToastRunUpdateID {
             try {
-                New-item -Path $CustomScriptPath -Name "Run-SoftwareUpdateID.cmd" -Force -OutVariable PathInfo | Out-Null
+                $CMDFileName = 'Run-' + $Type + '.cmd'
+                New-item -Path $CustomScriptPath -Name $CMDFileName -Force -OutVariable PathInfo | Out-Null
                     try {
                         $GetCustomScriptPath = $PathInfo.FullName
                         [String]$Script = @'
-Powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -NoProfile -WindowStyle Hidden -Command "& { $registryPath = "HKCU:\SOFTWARE\ToastNotificationScript";
-$UpdateID = (Get-ItemProperty -Path $RegistryPath -Name "RunUpdateID").RunUpdateID;
-if(Test-Path -Path "C:\Windows\CCM\ClientUX\SCClient.exe") { Start-Process -FilePath "C:\Windows\CCM\ClientUX\SCClient.exe" -ArgumentList $UpdateID -NoNewWindow } }"
+powershell.exe -ExecutionPolicy Bypass -NoLogo -NonInteractive -NoProfile -WindowStyle Hidden -File "C:\ProgramData\ToastNotificationScript\Run-ToastRunUpdateID.ps1"                      
 '@
                         Out-File -FilePath $GetCustomScriptPath -InputObject $Script -Encoding ASCII -Force
                     }
@@ -821,10 +894,38 @@ if(Test-Path -Path "C:\Windows\CCM\ClientUX\SCClient.exe") { Start-Process -File
                 Write-Log -Level Error -Message "$($ErrorMessage)"
                 Write-Error -Message "$($ErrorMessage)"
             }
-            
+
+            try {
+                $CMDFileName = 'Run-' + $Type + '.ps1'
+                New-item -Path $CustomScriptPath -Name $CMDFileName -Force -OutVariable PathInfo | Out-Null
+                    try {
+                        $GetCustomScriptPath = $PathInfo.FullName
+                        [String]$Script = @'
+$registryPath = "HKCU:\SOFTWARE\ToastNotificationScript";
+$UpdateID = (Get-ItemProperty -Path $RegistryPath -Name "RunUpdateID").RunUpdateID;
+if(Test-Path -Path "C:\Windows\CCM\ClientUX\SCClient.exe") { Start-Process -FilePath "C:\Windows\CCM\ClientUX\SCClient.exe" -ArgumentList "SoftwareCenter:SoftwareID=$($UpdateID)" -WindowStyle Maximized };
+exit 0                        
+'@
+                        Out-File -FilePath $GetCustomScriptPath -InputObject $Script -Encoding ASCII -Force
+                    }
+                    catch {
+                        $ErrorMessage = $_.Exception.Message
+                        Write-Log -Level Error -Message "$($ErrorMessage)"
+                        Write-Error -Message "$($ErrorMessage)"
+                    }
+            }
+            catch {
+                $ErrorMessage = $_.Exception.Message
+                Write-Log -Level Error -Message "$($ErrorMessage)"
+                Write-Error -Message "$($ErrorMessage)"
+            }
+            # Do not run another type; break
+            Break
         }
-        # TODO: Add other types: ApplicationID and PackageID
-        Default {Write-Verbose -Message "No Type Matched" -Verbose ; break}
+        # TODO: Add other types: ToastApplicationID and ToastPackageID
+        Default {
+            Write-Verbose -Message "No Type Matched" -Verbose ; break
+        }
     }
 }
 
@@ -867,8 +968,8 @@ function Get-CMUpdateAvailable {
             
             if ($EvaluationState -eq "None" -or $EvaluationState -eq "Available" -or $EvaluationState -eq "Submitted") {
                 Write-Log -Level Info -Message "Found a update that matches ID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
-                Write-Output "Found a update that matches $($UpdateID) and $($GetCMUpdate.Name)"
-                Return $Global:GetCMUpdate.UpdateID
+                # Write-Output "Found a update that matches $($UpdateID) and $($GetCMUpdate.Name)"
+                Return $GetCMUpdate.UpdateID
             }
             else {
                 Write-Log -Level Warn -Message "Update State is not set to available."
@@ -880,10 +981,10 @@ function Get-CMUpdateAvailable {
         else {
             Write-Log -Level Warn -Message "No Update was found on system. UpdateID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
             Write-Output "No Update was found on system. UpdateID: $($UpdateID) and Name: $($GetCMUpdate.Name)"
+            # if no update is found, then there is no point in running the toast
             Exit 1
         }
     }
-
 #EndRegion Helper Functions
 
 #Region Parse XML Config
@@ -1168,8 +1269,9 @@ if ($RunPackageIDEnabled -eq "True") {
 # Running RunUpdateID function
 if ($RunUpdateIDEnabled -eq "True") {
     Write-Log -Message "RunUpdateID set to True. Will allow execution of Software Update ID directly from the toast action button"
-    Write-CustomActionRegistry Updates
     Write-UpdateIDRegistry
+    Write-CustomActionScript -Type ToastRunUpdateID
+    Write-CustomActionRegistry -ActionType ToastRunUpdateID    
 }
 
 

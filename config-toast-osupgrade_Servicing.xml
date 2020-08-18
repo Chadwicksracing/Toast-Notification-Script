@@ -13,15 +13,15 @@
 	<Option Name="ADPasswordExpirationDays" Value="90" />	<!-- How many days in advance shall the toast start reminding the users  -->
 	<Option Name="RunPackageID" Enabled="False" Value="" /> <!-- Will enable the toast to run any ConfigMgr PackageID through a custom protocol -->
 	<Option Name="RunApplicationID" Enabled="False" Value="" /> <!-- Will enable the toast to run any ConfigMgr ApplicationID through a custom protocol -->
-	<Option Name="RunUpdateID" Enabled="True" Value="" /> <!-- Will enable the toast to run any ConfigMgr UpdateID through a custom protocol -->
-	<Option Name="RunUpdateTitle" Enabled="True" Value="" /> <!-- Will enable the toast to run any ConfigMgr Update Namethrough a custom protocol -->
+	<Option Name="RunUpdateID" Enabled="True" Value="3012973" /> <!-- Will enable the toast to run any ConfigMgr UpdateID through a custom protocol -->
+	<Option Name="RunUpdateTitle" Enabled="True" Value="Version 1909" /> <!-- Will enable the toast to run any ConfigMgr Update Namethrough a custom protocol -->
 	<Option Name="Deadline" Enabled="False" Value="30-09-2019 08:00" />	<!-- Adds an additional group to the toast with text about the deadline of the OSUpgrade -->
 	<Option Name="DynamicDeadline" Enabled="True" Value="KR1008C8" />	<!-- Adds an additional group to the toast with text about the deadline of the OSUpgrade. This will retrieve the deadline of the IPU from WMI -->
 	<Option Name="UseSoftwareCenterApp" Enabled="False" />	<!-- The app in Windows doing the actual notification - can't be both SoftwareCenter and Powershell -->
 	<Option Name="UsePowershellApp" Enabled="True" />	<!-- The app in Windows doing the actual notification - can't be both SoftwareCenter and Powershell -->
 	<Option Name="CustomAudio" Enabled="False" />	<!-- Enable or disable a custom speak scenario, where the text will be read out aloud -->
-	<Option Name="LogoImageName" Value="ToastLogoImageWindows.jpg" />  <!-- File name of the image shown as logo in the toast notoification  -->
-	<Option Name="HeroImageName" Value="ToastHeroImageOffice.jpg" /> <!-- File name of the image shown in the top of the toast notification -->	
+	<Option Name="LogoImageName" Value="fmins-favicon.png" />  <!-- File name of the image shown as logo in the toast notoification  -->
+	<Option Name="HeroImageName" Value="WaaSFMI.png" /> <!-- File name of the image shown in the top of the toast notification -->	
 	<Option Name="ActionButton" Enabled="True" />	<!-- Enables or disables the action button. -->
 	<Option Name="DismissButton" Enabled="False" />	<!-- Enables or disables the dismiss button. -->
 	<Option Name="SnoozeButton" Enabled="True" /> <!-- Enabling this option will always enable action button and dismiss button -->
