@@ -339,6 +339,7 @@ function Get-ADPasswordExpiration([string]$fADPasswordExpirationDays) {
 # Create function for retrieving deadline directly from WMI based on the PackageID. 
 # This works for Task Sequences and regular packages
 # Thank you @kevmjohnston :-)
+# TODO: Change this to support software updates
 function Get-DynamicDeadline() {
     Write-Log -Message "Running Get-DynamicDeadline function. Trying to get deadline details from WMI and ConfigMgr"
     if (Get-Service -Name ccmexec -ErrorAction SilentlyContinue) {
@@ -1531,7 +1532,7 @@ if ($SnoozeButtonEnabled -eq "True") {
     </binding>
     </visual>
     <actions>
-        <input id="snoozeTime" type="selection" title="$SnoozeText" defaultInput="15">
+        <input id="snoozeTime" type="selection" title="$SnoozeText" defaultInput="60">
             <selection id="15" content="15 $MinutesText"/>
             <selection id="30" content="30 $MinutesText"/>
             <selection id="60" content="1 $HourText"/>
